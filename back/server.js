@@ -1,99 +1,45 @@
-import express from "express";
-import { createServer } from "http";
-import { Server } from "socket.io";
-import { createClient, LiveTTSEvents } from "@deepgram/sdk";
-import dotenv from "dotenv";
-import cors from "cors";
-import fs from "fs";
-
-dotenv.config();
+const express = require("express");
+const cors = require("cors");
+const Groq = require("groq-sdk");
+require("dotenv").config();
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const PORT = process.env.PORT;
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, { cors: { origin: "http://localhost:5173" } });
-
+app.use(express.json());
 app.use(cors());
+app.use(express.static("dist"));
 
-const apiKey = process.env.DEEPGRAM_API_KEY;
-const deepgram = createClient(apiKey);
+const groq = new Groq({ apiKey: GROQ_API_KEY });
 
-io.on("connection", (socket) => {
-  console.log("Client connected");
+async function getLLMResponse(text) {
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      "messages": [
+        { "role": "system", "content": "You are an expert English teacher and a friendly conversational assistant. First, check if the user's sentence contains abusive language (e.g., 'fuck', 'shit', racial slurs). If detected, respond ONLY with 'I can't respond to this sentence.' Otherwise, check grammatical correctness while ignoring capitalization, punctuation, and minor stylistic choices. If the sentence is correct, respond with 'Your sentence is correct.' If errors exist, provide ONLY the corrected version. Keep responses short, engaging, and conversational, like a real-time chat. Ask relevant follow-up questions to keep the conversation natural, but only one at a time. Keep responses under 100 characters. If a question is unclear, ask for clarification before answering. Never explain your corrections—just respond concisely and keep it human-like." },
+        { "role": "user", "content": `Check this sentence for grammatical errors: "${text}"`}
+      ],
+      "model": "mixtral-8x7b-32768",
+      "temperature": 0.03,
+      "max_completion_tokens": 520,
+      "top_p": 1,
+      "stream": false,
+      "stop": null
+    });
 
-  socket.on("request-welcome", async () => {
-    console.log("🟢 Request received: Generating Welcome Message...");
+    return chatCompletion.choices[0]?.message?.content || "No response.";
+  } catch (error) {
+    console.error("Error:", error);
+    return "Error processing request.";
+  }
+}
 
-    try {
-      const liveTTS = deepgram.speak.live({
-        model: "aura-asteria-en",
-        encoding: "linear16",
-        sample_rate: 48000,
-      });
+app.post("/api/v1/llm", async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ "error": "Transcript is required." });
 
-      let audioChunks = [];
-
-      liveTTS.on(LiveTTSEvents.Open, () => {
-        console.log("✅ TTS Connection Opened.");
-        try {
-          liveTTS.sendText("Hello! How can I help you today?");
-          liveTTS.flush();
-        } catch (err) {
-          console.error("❌ Error sending TTS text:", err);
-        }
-      });
-
-      liveTTS.on(LiveTTSEvents.Audio, (data) => {
-        try {
-          console.log("🔵 Receiving audio data...");
-          audioChunks.push(Buffer.from(data.buffer));
-        } catch (err) {
-          console.error("❌ Error processing audio buffer:", err);
-        }
-      });
-
-      liveTTS.on(LiveTTSEvents.Close, async () => {
-        console.log("🟡 TTS Connection Closed. Processing audio...");
-
-        try {
-          if (audioChunks.length === 0) {
-            console.error("❌ No audio chunks received.");
-            socket.emit("tts-error", "No audio data received.");
-            return;
-          }
-
-          const audioBuffer = Buffer.concat(audioChunks);
-          const filePath = "output.wav";
-
-          fs.writeFile(filePath, audioBuffer, (err) => {
-            if (err) {
-              console.error("❌ Error saving audio file:", err);
-              socket.emit("tts-error", "Error saving audio file.");
-            } else {
-              console.log("✅ Audio file saved:", filePath);
-              socket.emit("tts-audio-url", `http://localhost:5000/${filePath}`);
-            }
-          });
-        } catch (err) {
-          console.error("❌ Error handling TTS audio:", err);
-          socket.emit("tts-error", "Error handling TTS audio.");
-        }
-      });
-
-      liveTTS.on(LiveTTSEvents.Error, (error) => {
-        console.error("❌ TTS Error:", error);
-        socket.emit("tts-error", error.message || "TTS processing error.");
-      });
-    } catch (err) {
-      console.error("❌ Error setting up Deepgram TTS:", err);
-      socket.emit("tts-error", "Deepgram setup failed.");
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log("🔴 Client disconnected");
-  });
+  const response = await getLLMResponse(text);
+  res.json({ "response": response });
 });
 
-server.listen(5000, () => {
-  console.log("🚀 Server running on http://localhost:5000");
-});
+app.listen(PORT, () => console.log("Server running on port", PORT));

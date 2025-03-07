@@ -1,81 +1,85 @@
-// import { useState } from "react";
-
-// const App = () => {
-//   const [isLoading, setIsLoading] = useState(false);
-//   const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
-
-//   const handleTTS = async () => {
-//     setIsLoading(true);
-//     const url = "https://api.deepgram.com/v1/speak";
-//     const options = {
-//       method: "POST",
-//       headers: {
-//         Authorization: "Token " + apiKey,
-//         "Content-Type": "application/json",
-//       },
-//       body: JSON.stringify({ text: "Hello, this is a test speech." }),
-//     };
-
-//     try {
-//       const response = await fetch(url, options);
-//       const blob = await response.blob();
-//       const audioURL = URL.createObjectURL(blob);
-//       const audio = new Audio(audioURL);
-//       audio.play();
-//     } catch (error) {
-//       console.error("App Error:", error);
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="flex flex-col items-center justify-center h-screen">
-//       <button
-//         onClick={handleTTS}
-//         className="px-4 py-2 bg-blue-500 text-white rounded-lg"
-//         disabled={isLoading}
-//       >
-//         {isLoading ? "Speaking..." : "Speak"}
-//       </button>
-//     </div>
-//   );
-// };
-
-// export default App;
-
-
 import React, { useState, useEffect, useRef } from "react";
 import { createClient, LiveTranscriptionEvents } from "@deepgram/sdk";
-
-// Create a file named audioProcessor.js in the public folder with the content from before
 
 const App = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [currentSentence, setCurrentSentence] = useState("");
+  const [llmResponse, setLlmResponse] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const liveClientRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const audioContextRef = useRef(null);
   const workletNodeRef = useRef(null);
   const transcriptPartsRef = useRef([]);
+  
+  const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
+
+  // Function to convert text to speech using Deepgram
+  const handleTTS = async (text) => {
+    setIsLoading(true);
+    const url = "https://api.deepgram.com/v1/speak";
+    const options = {
+      method: "POST",
+      headers: {
+        Authorization: "Token " + apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    };
+
+    try {
+      const response = await fetch(url, options);
+      const blob = await response.blob();
+      const audioURL = URL.createObjectURL(blob);
+      const audio = new Audio(audioURL);
+      audio.play();
+    } catch (error) {
+      console.error("TTS Error:", error);
+      setError("Failed to convert text to speech: " + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Function to get LLM response
+  const getLlmResponse = async (transcriptText) => {
+    try {
+      const response = await fetch("/api/v1/llm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: transcriptText }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.response || "No response from LLM";
+    } catch (error) {
+      console.error("LLM API Error:", error);
+      setError("Failed to get LLM response: " + error.message);
+      return "Error getting response";
+    }
+  };
 
   // Function to start recording and transcription
   const startListening = async () => {
     try {
       setError("");
       
-      // Get API key (in a real app, this should be securely managed)
-      const DEEPGRAM_API_KEY = import.meta.env.VITE_DEEPGRAM_API_KEY;
-      if (!DEEPGRAM_API_KEY) {
+      if (!apiKey) {
         throw new Error("Deepgram API key is missing");
       }
 
       // Initialize Deepgram client
-      const deepgram = createClient(DEEPGRAM_API_KEY);
+      const deepgram = createClient(apiKey);
       
-      // Create a live transcription instance with options similar to your Python example
+      // Create a live transcription instance with options
       const liveClient = deepgram.listen.live({ 
         model: "nova-2",
         punctuate: true,
@@ -83,8 +87,8 @@ const App = () => {
         encoding: "linear16",
         channels: 1,
         sample_rate: 16000,
-        endpointing: true,  // Enable endpointing like in Python example
-        interim_results: true // Get non-final results
+        endpointing: true,
+        interim_results: true
       });
       
       // Store reference to live client
@@ -94,13 +98,14 @@ const App = () => {
       transcriptPartsRef.current = [];
       setCurrentSentence("");
       setTranscript("");
+      setLlmResponse("");
 
       // Listen for the open event
       liveClient.on(LiveTranscriptionEvents.Open, () => {
         console.log("Connection established with Deepgram");
         
         // Listen for transcription events
-        liveClient.on(LiveTranscriptionEvents.Transcript, (result) => {
+        liveClient.on(LiveTranscriptionEvents.Transcript, async (result) => {
           const sentence = result.channel.alternatives[0].transcript;
           
           if (sentence.trim()) {
@@ -116,8 +121,15 @@ const App = () => {
               
               console.log(`Full sentence: ${fullTranscript}`);
               
-              // Update transcript with the full sentence
-              setTranscript(prev => prev + (prev ? " " : "") + fullTranscript);
+              // Reset transcript and set new one
+              setTranscript(fullTranscript);
+              
+              // Get LLM response for the full transcript
+              const response = await getLlmResponse(fullTranscript);
+              setLlmResponse(response);
+              
+              // Convert LLM response to speech automatically
+              handleTTS(response);
               
               // Reset for next sentence
               transcriptPartsRef.current = [];
@@ -180,7 +192,6 @@ const App = () => {
         // Connect the nodes
         source.connect(workletNode);
         // Don't connect to destination to avoid feedback
-        // workletNode.connect(audioContext.destination);
       } catch (workletError) {
         console.warn("AudioWorklet not supported, falling back to ScriptProcessor", workletError);
         
@@ -197,7 +208,7 @@ const App = () => {
         };
         
         source.connect(processor);
-        // Don't connect to destination to avoid feedback
+        // Connect to destination for ScriptProcessor to work
         processor.connect(audioContext.destination);
       }
 
@@ -264,47 +275,55 @@ const App = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
-      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold text-center mb-6">Live Audio Transcription</h1>
+    <div className="min-h-screen bg-gray-900 p-8">
+      <div className="max-w-3xl mx-auto bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-100">Interactive Voice Assistant</h1>
         
         <div className="mb-6">
           <button
             onClick={isListening ? stopListening : startListening}
-            className={`w-full py-3 px-4 rounded-lg text-white font-medium ${
+            className={`w-full py-3 px-4 rounded-lg text-white font-medium transition-all duration-300 ${
               isListening 
                 ? "bg-red-600 hover:bg-red-700" 
-                : "bg-blue-600 hover:bg-blue-700"
+                : "bg-indigo-600 hover:bg-indigo-700"
             }`}
+            disabled={isLoading}
           >
             {isListening ? "Stop Listening" : "Start Listening"}
           </button>
         </div>
         
-        <div className="bg-gray-50 rounded-lg p-4 h-64 overflow-y-auto mb-4">
-          <h2 className="text-lg font-semibold mb-2">Transcript</h2>
-          <div className="whitespace-pre-wrap">
-            {transcript || (isListening ? "Listening..." : "Click 'Start Listening' to begin transcription.")}
+        {/* Transcript Section */}
+        <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
+          <h2 className="text-lg font-semibold mb-2 text-gray-200">Your Speech</h2>
+          <div className="whitespace-pre-wrap min-h-16 text-gray-300">
+            {transcript || (isListening && currentSentence) || 
+              (isListening ? "Listening..." : "Click 'Start Listening' to begin.")}
           </div>
         </div>
         
-        {isListening && (
-          <div className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-200">
-            <h2 className="text-lg font-semibold mb-2">Current Speech</h2>
-            <div className="whitespace-pre-wrap italic">
-              {currentSentence || "..."}
-            </div>
+        {/* LLM Response Section */}
+        <div className="bg-gray-750 rounded-lg p-4 mb-4 border border-indigo-900">
+          <h2 className="text-lg font-semibold mb-2 text-indigo-300">Assistant Response</h2>
+          <div className="whitespace-pre-wrap min-h-16 text-gray-200">
+            {isLoading ? 
+              <div className="flex items-center">
+                <div className="animate-pulse mr-2 text-indigo-300">Processing...</div>
+                <div className="w-4 h-4 border-t-2 border-indigo-500 rounded-full animate-spin"></div>
+              </div> : 
+              llmResponse || "No response yet"}
           </div>
-        )}
+        </div>
         
         {error && (
-          <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg">
+          <div className="mt-4 p-3 bg-red-900 text-red-200 rounded-lg border border-red-700">
             {error}
           </div>
         )}
         
-        <div className="mt-6 text-sm text-gray-500">
-          <p>Status: {isListening ? "Connected to Deepgram" : "Disconnected"}</p>
+        <div className="mt-6 text-sm text-gray-400 flex justify-between">
+          <p>Status: {isListening ? "Listening" : "Idle"}</p>
+          {isLoading && <p>Processing response...</p>}
         </div>
       </div>
     </div>
