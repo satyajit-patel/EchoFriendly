@@ -1,0 +1,21 @@
+{
+  "name": "back",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@deepgram/sdk": "^3.11.2",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "http": "^0.0.1-security",
+    "socket.io": "^4.8.1"
+  }
+}
