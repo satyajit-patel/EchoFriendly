@@ -8,7 +8,6 @@ const PORT = process.env.PORT;
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(express.static("dist"));
 
 const groq = new Groq({ apiKey: GROQ_API_KEY });
 
@@ -40,6 +39,10 @@ app.post("/api/v1/llm", async (req, res) => {
 
   const response = await getLLMResponse(text);
   res.json({ "response": response });
+});
+
+app.use("/", (req, res) => {
+  res.send("UP");
 });
 
 app.listen(PORT, () => console.log("Server running on port", PORT));
