@@ -14,12 +14,21 @@ const Home = () => {
   const audioContextRef = useRef(null);
   const workletNodeRef = useRef(null);
   const transcriptPartsRef = useRef([]);
+  // Add a reference to track the current audio playback
+  const currentAudioRef = useRef(null);
   
   const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
 
   // Function to convert text to speech using Deepgram
   const handleTTS = async (text) => {
     setIsLoading(true);
+    
+    // Stop any currently playing audio
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    
     const url = "https://api.deepgram.com/v1/speak";
     const options = {
       method: "POST",
@@ -35,6 +44,17 @@ const Home = () => {
       const blob = await response.blob();
       const audioURL = URL.createObjectURL(blob);
       const audio = new Audio(audioURL);
+      
+      // Store reference to the current audio
+      currentAudioRef.current = audio;
+      
+      // Add event listener to clean up when audio ends
+      audio.addEventListener('ended', () => {
+        if (currentAudioRef.current === audio) {
+          currentAudioRef.current = null;
+        }
+      });
+      
       audio.play();
     } catch (error) {
       console.error("TTS Error:", error);
@@ -89,6 +109,13 @@ const Home = () => {
           if (sentence.trim()) {
             console.log(`Got transcript: ${sentence}, speech_final: ${result.speech_final}`);
             
+            // If user starts speaking, stop any current audio playback
+            if (currentAudioRef.current) {
+              console.log("Stopping current audio as user is speaking");
+              currentAudioRef.current.pause();
+              currentAudioRef.current = null;
+            }
+            
             if (!result.speech_final) {
               // This is an interim result, update the current sentence
               setCurrentSentence(sentence);
@@ -103,7 +130,7 @@ const Home = () => {
               setTranscript(fullTranscript);
               
               // Get LLM response for the full transcript
-              const response = await getLlmResponse(fullTranscript);
+              const response = await getLlmResponse({ text: fullTranscript });
               setLlmResponse(response);
               
               // Convert LLM response to speech automatically
@@ -203,6 +230,12 @@ const Home = () => {
   // Function to stop recording and transcription
   const stopListening = () => {
     try {
+      // Stop any currently playing audio
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+      
       // Close Deepgram connection
       if (liveClientRef.current) {
         liveClientRef.current.requestClose();
@@ -248,6 +281,11 @@ const Home = () => {
   // Clean up on component unmount
   useEffect(() => {
     return () => {
+      // Make sure to stop any playing audio when component unmounts
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
       stopListening();
     };
   }, []);

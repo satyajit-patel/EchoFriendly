@@ -5,12 +5,19 @@ import { GoogleGeminiEffect } from "./google-gemini-effect";
 import {getLlmResponse} from "../apis/Api";
 
 export function GoogleGeminiEffectDemo() {
+
   useEffect(() => {
     async function wakeUpCall() {
-      await getLlmResponse("");
+      try {
+        const response = await getLlmResponse({ text: "Hello" }); // Pass required data
+        console.log("API Response:", response);
+      } catch (error) {
+        console.error("Error getting backend response:", error);
+      }
     }
     wakeUpCall();
   }, []);
+  
 
   const ref = React.useRef(null);
   const { scrollYProgress } = useScroll({
