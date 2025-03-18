@@ -1,4 +1,4 @@
 ### find the live link [here](https://echo-friendly.vercel.app)
 
 ### work flow
-![flow chart](https://www.plantuml.com/plantuml/dpng/NLBFxjCm3BxtAQpVgRzNA0TM5P0cDZHjxC0nfDvgARD3udOQJq-IiWXsQkNlZpz_oYQg2JhVN5D-ccxBf6GS_KOOvEQ5aVL3GnTeFo7wQp0tw0zR-8eFw1T3plnq-F4TT4A6zWV6zmQW6m8QHQYAmL6soT095SuUThGWV0-6emtabOGBUiHVCqQ5FTaWVX96wAt565TjZfYaKP69htbsdyWXj4UqI4kQGJ-F92aGnHedAGz1iikAmfRzNDAKF3p-7QlKn2kOhpvvH3l15sBZNkzS3LJ2lwTaQNNEdhlT7YuIu8ZH2qUiX45umQ2PKC4iM5TMsi6PnvhmnG9TuhVVf4Ov-p7NFimX82ka08fidsmUwTAKRobjBLJy_trsWvEOB8GPhP9mQhxkAP99xl0v10aTlEqfnYHyleYtn2rROl9jDka_FQm_)
+![flow chart](./image.png)
