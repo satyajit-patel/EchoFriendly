@@ -49,6 +49,7 @@ async function getLLMResponse(text) {
 
 app.post("/api/v1/llm", async (req, res) => {
   const { text } = req.body;
+  console.log(text);
   if (!text) return res.status(400).json({ "error": "Transcript is required." });
 
   const response = await getLLMResponse(text);
