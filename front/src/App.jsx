@@ -12,8 +12,8 @@ const AppContent = () => {
       {location.pathname !== "/" && <Navbar />}
       <Routes>
         <Route path="/" element={<GoogleGeminiEffectDemo />} />
-        <Route path="/Home" element={<Home />} />
-        {/* <Route path="/Home" element={<NewHome />} /> */}
+        {/* <Route path="/Home" element={<Home />} /> */}
+        <Route path="/Home" element={<NewHome />} />
       </Routes>
     </>
   );
