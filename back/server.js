@@ -32,7 +32,7 @@ async function getLLMResponse(text) {
         `},
         { "role": "user", "content": text}
       ],
-      "model": "mixtral-8x7b-32768",
+      "model": "llama-3.3-70b-versatile",
       "temperature": 0.03,
       "max_completion_tokens": 520,
       "top_p": 1,
