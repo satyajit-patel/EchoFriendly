@@ -9,10 +9,10 @@ export function GoogleGeminiEffectDemo() {
   useEffect(() => {
     async function wakeUpCall() {
       try {
-        const response = await getLlmResponse({ text: "Hello" }); // Pass required data
+        const response = await getLlmResponse({ text: "Hello" });
         console.log("API Response:", response);
       } catch (error) {
-        console.error("Error getting backend response:", error);
+        console.error("Error getting backend response:", error.message);
       }
     }
     wakeUpCall();
